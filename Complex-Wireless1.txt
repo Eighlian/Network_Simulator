@@ -1,0 +1,133 @@
+# Define options
+#
+===============================================================
+=
+set val(chan) Channel/WirelessChannel ;# Channel model
+set val(prop) Propagation/TwoRayGround ;# radio propagation model
+set val(netif) Phy/WirelessPhy ;# physical layer (wireless)
+set val(mac) Mac/802_11 ;# MAC model is set to 802.11
+set val(ifq) Queue/DropTail/PriQueue ;# Queue type for DSDV & AODV
+# set val(ifq) CMUPriQueue ;# Use this Queue for DSR
+set val(ll) LL
+set val(ant) Antenna/OmniAntenna ;# Antenna type to use
+set val(x) 1000 ;# X dimension of the topography
+set val(y) 500 ;# Y dimension of the topography
+set val(ifqlen) 10 ;# max packet in ifq
+set val(seed) 1.0
+set val(adhocRouting) AODV ;# this is the protocol to use
+set val(nn) 30 ;# how many nodes are simulated
+set val(nn1) 10
+set val(nn2) 30
+set val(cp) "cbr30-1-15-4.txt" ;# this is the transmission pattern
+set val(sc) "mov1-30.txt" ;# this is the movement pattern file
+set val(stop) 200.0 ;# simulation time to run in seconds
+#==============================================================
+==
+# Main Program
+#==============================================================
+==
+#
+
+# Initialize Global Variables
+#
+# create simulator instance
+set ns_ [new Simulator]
+# setup topography object
+set topo [new Topography]
+# create trace object for ns and nam
+# these are the files that record the results
+set tracefd [open 30A-10-D-20-1.tr w]
+set namtrace [open 30A-10-D-20-1.nam w]
+# tell the program to trace all the events
+$ns_ use-newtrace
+$ns_ trace-all $tracefd
+$ns_ namtrace-all-wireless $namtrace $val(x) $val(y)
+# define topology
+$topo load_flatgrid $val(x) $val(y)
+#
+# Create god
+#
+set god_ [create-god $val(nn)]
+#
+# define how node should be created
+#
+# global node setting
+set val(adhocRouting) AODV
+set val(ifq) Queue/DropTail/PriQueue
+$ns_ node-config -adhocRouting $val(adhocRouting) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-wiredRouting OFF \
+-routerTrace ON \
+-macTrace ON
+#
+# Create the specified number of nodes [$val(nn)] and "attach" them
+# to the channel.
+for {set i 0} {$i < $val(nn1) } {incr i} {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0 ;# disable random motion
+}
+#
+set val(adhocRouting) DSR
+set val(ifq) CMUPriQueue
+$ns_ node-config -adhocRouting $val(adhocRouting) \
+-llType $val(ll) \
+-macType $val(mac) \
+-ifqType $val(ifq) \
+-ifqLen $val(ifqlen) \
+-antType $val(ant) \
+-propType $val(prop) \
+-phyType $val(netif) \
+-channelType $val(chan) \
+-topoInstance $topo \
+-agentTrace ON \
+-wiredRouting OFF \
+-routerTrace ON \
+-macTrace ON
+#
+# Create the specified number of nodes [$val(nn)] and "attach" them
+# to the channel.
+for {set i 10} {$i < $val(nn2) } {incr i} {
+set node_($i) [$ns_ node]
+$node_($i) random-motion 0 ;# disable random motion
+}
+# Define node movement model
+# In this case, a movement model is loaded from the file indicated above (cp)
+#
+puts "Loading connection pattern..."
+source $val(cp)
+#
+# Define traffic model
+# In this case, the traffic model is loaded from the file indicated above (sc)
+puts "Loading scenario file..."
+source $val(sc)
+# Define node initial position in nam
+for {set i 0} {$i < $val(nn)} {incr i} {
+# 20 defines the node size in nam, must adjust it according to your scenario
+# The function must be called after mobility model is defined
+$ns_ initial_node_pos $node_($i) 20 ;# value indicates size of circle from 20 to 10
+}
+#
+# Tell nodes when the simulation ends
+#
+for {set i 0} {$i < $val(nn) } {incr i} {
+$ns_ at $val(stop).0 "$node_($i) reset";
+}
+# End the simulation
+$ns_ at $val(stop).0002 "puts \"NS EXITING...\" ; $ns_ halt"
+# store the first four lines of the trace data
+puts $tracefd "M 0.0 nn $val(nn) nn1 $val(nn1) nn2 $val(nn2)"
+puts $tracefd "M 0.0 x $val(x) y $val(y) rp $val(adhocRouting)"
+puts $tracefd "M 0.0 sc $val(sc) cp $val(cp) seed $val(seed)"
+puts $tracefd "M 0.0 prop $val(prop) ant $val(ant)"
+# Run the simulation
+puts "Starting Simulation..."
+$ns_ run
